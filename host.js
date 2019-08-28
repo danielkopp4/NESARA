@@ -1,29 +1,140 @@
-var http = require('http');
 var url = require('url');
 var fs = require('fs');
 var path = require('path');
 var searchParams = require('search-params');
 var formidable = require('formidable');
+var childProcess = require("child_process");
+var express = require('express');
+var app = express();
+var http = require('http').Server(app);
+var io = require('socket.io')(http);
 
-http.createServer(function (req, res) {
-  if (req.url == '/fileupload') {
-    var form = new formidable.IncomingForm();
-    form.parse(req, function (err, fields, files) {
-      res.write('File uploaded');
-      var file_path = files.filetoupload.path;
-      res.end();
+var port = process.env.PORT || 8080;
+
+http.listen(port, function() {
+    console.log('server running on port ' + port);
+});
+
+app.post('/fileupload', function (req, res) {
+  var form = new formidable.IncomingForm();
+  form.parse(req, function (err, fields, files) {
+    res.write('<p>File Uploaded</p>');
+    var file_path = files.filetoupload.path;
+    getDiagnosis(file_path, res);
+  });
+});
+
+io.on('connection', function(socket){
+  var Files = {};
+
+  socket.on('Start', function(data) {
+        var Name = data['Name'];
+        console.log(data['Size']);
+        Files[Name] = {  //Create a new Entry in The Files Variable
+            FileSize : data['Size'],
+            Data     : "",
+            Downloaded : 0
+        }
+        var Place = 0;
+        var splitName = Name.split(".");
+        var fileName = random_string() + splitName[splitName.length];
+        fs.open("/tmp/" + fileName, "a", 0755, function(err, fd){
+            if(err) {
+                console.log(err);
+            } else {
+                Files[Name]['Handler'] = fd; //We store the file handler so we can write to it later
+                socket.emit('MoreData', { 'Place' : Place, Percent : 0 });
+            }
+        });
+  });
+
+  socket.on('Upload', function (data){
+        var Name = data['Name'];
+        Files[Name]['Downloaded'] += data['Data'].length;
+        Files[Name]['Data'] += data['Data'];
+        if(Files[Name]['Downloaded'] == Files[Name]['FileSize']) //If File is Fully Uploaded
+        {
+            var Place = Files[Name]['FileSize'];
+            var Percent = 100;
+            socket.emit('MoreData', { 'Place' : Place, 'Percent' :  Percent});
+            fs.write(Files[Name]['Handler'], Files[Name]['Data'], null, 'Binary', function(err, Writen){
+                //Get Thumbnail Here
+            });
+
+            var diagnosis = getDiagnosis('/tmp/' + Name) ;
+            console.log(diagnosis);
+            socket.emit('Diagnosis', { 'Diagnosis': getDiagnosis('/tmp/' + Name) });
+        }
+        else if(Files[Name]['Data'].length > 10485760){ //If the Data Buffer reaches 10MB
+            fs.write(Files[Name]['Handler'], Files[Name]['Data'], null, 'Binary', function(err, Writen){
+                Files[Name]['Data'] = ""; //Reset The Buffer
+                var Place = Files[Name]['Downloaded'] / 524288;
+                var Percent = (Files[Name]['Downloaded'] / Files[Name]['FileSize']) * 100;
+                socket.emit('MoreData', { 'Place' : Place, 'Percent' :  Percent});
+            });
+        }
+        else
+        {
+            var Place = Files[Name]['Downloaded'] / 524288;
+            var Percent = (Files[Name]['Downloaded'] / Files[Name]['FileSize']) * 100;
+            socket.emit('MoreData', { 'Place' : Place, 'Percent' :  Percent});
+        }
     });
-  } else {
-    res.writeHead(200, {'Content-Type': 'text/html'});
-    res.write('<form action="fileupload" method="post" enctype="multipart/form-data">');
-    res.write('<input type="file" name="filetoupload"><br>');
-    res.write('<input type="submit">');
-    res.write('</form>');
-    return res.end();
-  }
-}).listen(8080);
+
+  // socket.on('file', function (msg) {
+  //   console.log(msg);
+  // });
+
+  // socket.on('disconnect', function (){
+  //   console.log('user disconnected');
+  // });
+});
+
+
+app.get('', function (req, res) {
+    fs.readFile(__dirname + '/public/index.html', function(err, data) { //read file index.html in public folder
+      if (err) {
+        res.writeHead(404, {'Content-Type': 'text/html'}); //display 404 on error
+        return res.end("404 Not Found");
+      }
+      res.writeHead(200, {'Content-Type': 'text/html'}); //write HTML
+      res.write(data); //write data from index.html
+      return res.end();
+    });
+});
+
+var script_path = "./test.py"
 
 function getDiagnosis(file_path) {
-  // get model output from path
-  // heres how to start python in node js https://stackoverflow.com/questions/23450534/how-to-call-a-python-function-from-node-js
+  return callPython(script_path, file_path);
 }
+
+function callPython(script_path, arg) {
+  // get model output from path
+  // heres how to start python in node js https://stackoverflow.com/questions/23450534/how-to-call-a-python-function-from-node-
+
+  var spawn = childProcess.spawn;
+  var process = spawn('python',[script_path,
+    arg]);
+
+  process.stderr.on('data', function (data) {
+    console.log("ERR: " + data.toString())
+  });
+  var incoming;
+  process.stdout.on('data', function(data) {
+    incoming = data.toString();
+    console.log(incoming);
+  });
+  return incoming;
+
+}
+
+function random_string() {
+  return 'xxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+
+//https://code.tutsplus.com/tutorials/how-to-create-a-resumable-video-uploader-in-nodejs--net-25445

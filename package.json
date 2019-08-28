@@ -1,0 +1,25 @@
+{
+  "name": "nesara",
+  "version": "1.0.0",
+  "description": "Crop analyzer",
+  "main": "host.js",
+  "scripts": {
+    "test": "node host.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nesaraagri/NESARA.git"
+  },
+  "keywords": [
+    "NESARA"
+  ],
+  "author": "Daniel Kopp + Vaishak Kumar",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nesaraagri/NESARA/issues"
+  },
+  "homepage": "https://github.com/nesaraagri/NESARA#readme",
+  "dependencies": {
+    "socket.io": "^2.2.0"
+  }
+}
