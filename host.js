@@ -1,7 +1,6 @@
 var url = require('url');
 var fs = require('fs');
 var path = require('path');
-var searchParams = require('search-params');
 var formidable = require('formidable');
 var childProcess = require("child_process");
 var express = require('express');
@@ -30,14 +29,17 @@ io.on('connection', function(socket){
   socket.on('Start', function(data) {
         var Name = data['Name'];
         console.log(data['Size']);
+        var splitName = Name.split(".");
+        var fileName = random_string() + "." + splitName[splitName.length - 1];
+        var filePath = "/tmp/" + fileName;
+        console.log("File Name " + fileName);
         Files[Name] = {  //Create a new Entry in The Files Variable
             FileSize : data['Size'],
             Data     : "",
-            Downloaded : 0
+            Downloaded : 0,
+            FilePath : filePath
         }
         var Place = 0;
-        var splitName = Name.split(".");
-        var fileName = random_string() + splitName[splitName.length];
         fs.open("/tmp/" + fileName, "a", 0755, function(err, fd){
             if(err) {
                 console.log(err);
@@ -52,8 +54,7 @@ io.on('connection', function(socket){
         var Name = data['Name'];
         Files[Name]['Downloaded'] += data['Data'].length;
         Files[Name]['Data'] += data['Data'];
-        if(Files[Name]['Downloaded'] == Files[Name]['FileSize']) //If File is Fully Uploaded
-        {
+        if (Files[Name]['Downloaded'] == Files[Name]['FileSize']) {
             var Place = Files[Name]['FileSize'];
             var Percent = 100;
             socket.emit('MoreData', { 'Place' : Place, 'Percent' :  Percent});
@@ -61,33 +62,25 @@ io.on('connection', function(socket){
                 //Get Thumbnail Here
             });
 
-            var diagnosis = getDiagnosis('/tmp/' + Name) ;
-            console.log(diagnosis);
-            socket.emit('Diagnosis', { 'Diagnosis': getDiagnosis('/tmp/' + Name) });
-        }
-        else if(Files[Name]['Data'].length > 10485760){ //If the Data Buffer reaches 10MB
+            getDiagnosis(Files[Name]['FilePath'], function (diagnosis) {
+              socket.emit('Diagnosis', { 'data': diagnosis });
+              console.log(diagnosis);
+            });
+
+        } else if (Files[Name]['Data'].length > 10485760){ //If the Data Buffer reaches 10MB
             fs.write(Files[Name]['Handler'], Files[Name]['Data'], null, 'Binary', function(err, Writen){
                 Files[Name]['Data'] = ""; //Reset The Buffer
                 var Place = Files[Name]['Downloaded'] / 524288;
                 var Percent = (Files[Name]['Downloaded'] / Files[Name]['FileSize']) * 100;
                 socket.emit('MoreData', { 'Place' : Place, 'Percent' :  Percent});
             });
-        }
-        else
-        {
+        } else {
             var Place = Files[Name]['Downloaded'] / 524288;
             var Percent = (Files[Name]['Downloaded'] / Files[Name]['FileSize']) * 100;
             socket.emit('MoreData', { 'Place' : Place, 'Percent' :  Percent});
         }
     });
 
-  // socket.on('file', function (msg) {
-  //   console.log(msg);
-  // });
-
-  // socket.on('disconnect', function (){
-  //   console.log('user disconnected');
-  // });
 });
 
 
@@ -105,11 +98,11 @@ app.get('', function (req, res) {
 
 var script_path = "./test.py"
 
-function getDiagnosis(file_path) {
-  return callPython(script_path, file_path);
+function getDiagnosis(file_path, callback) {
+  return callPython(script_path, file_path, callback);
 }
 
-function callPython(script_path, arg) {
+function callPython(script_path, arg, callback) {
   // get model output from path
   // heres how to start python in node js https://stackoverflow.com/questions/23450534/how-to-call-a-python-function-from-node-
 
@@ -120,18 +113,19 @@ function callPython(script_path, arg) {
   process.stderr.on('data', function (data) {
     console.log("ERR: " + data.toString())
   });
+
   var incoming;
   process.stdout.on('data', function(data) {
     incoming = data.toString();
-    console.log(incoming);
+    // console.log(incoming);
+    callback(incoming);
   });
-  return incoming;
 
 }
 
 function random_string() {
-  return 'xxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+  return 'xxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/[x]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = r;
     return v.toString(16);
   });
 }

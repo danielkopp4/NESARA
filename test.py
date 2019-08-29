@@ -10,7 +10,7 @@ def format_html(stringarr):
             new_string.append("<br>")
         else:
             new_string.append("<p>{}</p>".format(line))
-    return "".join(new_string)
+    return '<div class="diagnosis">{}</div>'.format("".join(new_string))
 
 
 final_message = []
