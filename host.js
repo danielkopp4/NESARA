@@ -14,14 +14,6 @@ http.listen(port, function() {
     console.log('server running on port ' + port);
 });
 
-app.post('/fileupload', function (req, res) {
-  var form = new formidable.IncomingForm();
-  form.parse(req, function (err, fields, files) {
-    res.write('<p>File Uploaded</p>');
-    var file_path = files.filetoupload.path;
-    getDiagnosis(file_path, res);
-  });
-});
 
 io.on('connection', function(socket){
   var Files = {};
@@ -83,6 +75,30 @@ io.on('connection', function(socket){
 
 });
 
+app.get('/style.css', function (req, res) {
+  fs.readFile(__dirname + '/public/style.css', function(err, data) { //read file index.html in public folder
+    if (err) {
+      res.writeHead(404, {'Content-Type': 'text/html'}); //display 404 on error
+      return res.end("404 Not Found");
+    }
+    res.writeHead(200, {'Content-Type': 'text/css'}); //write HTML
+    res.write(data); //write data from index.html
+    return res.end();
+  });
+});
+
+app.get('/index.js', function (req, res) {
+  fs.readFile(__dirname + '/public/index.js', function(err, data) { //read file index.html in public folder
+    if (err) {
+      console.log(err);
+      res.writeHead(404, {'Content-Type': 'text/html'}); //display 404 on error
+      return res.end("404 Not Found");
+    }
+    res.writeHead(200, {'Content-Type': 'text/javscript'}); //write HTML
+    res.write(data); //write data from index.html
+    return res.end();
+  });
+});
 
 app.get('', function (req, res) {
     fs.readFile(__dirname + '/public/index.html', function(err, data) { //read file index.html in public folder
