@@ -63,7 +63,7 @@ io.on('connection', function(socket){
             });
 
             getDiagnosis(Files[Name]['FilePath'], function (diagnosis) {
-              socket.emit('Diagnosis', { 'data': diagnosis });
+              socket.emit('Diagnosis', { 'data': diagnosis, 'length' : diagnosis.length });
               console.log(diagnosis);
             });
 
